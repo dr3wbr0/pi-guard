@@ -100,7 +100,11 @@ read -p "Continue? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][e
 systemctl stop lighttpd.service
 cp /etc/lighttpd/external.conf /etc/lighttpd/external.conf.orig
 certbot certonly --standalone
-FQDN=$(hostname).$(dnsdomainname)
+
+echo "" && echo "Enter just the CNAME (or hostname) without the domain."
+read -p "This should be the same as what was used for Let's Encrytp: " CNAME
+
+FQDN=$CNAME.$(dnsdomainname)
 
 cat /etc/letsencrypt/live/$FQDN/privkey.pem \
 /etc/letsencrypt/live/$FQDN/cert.pem | \
@@ -154,11 +158,10 @@ ln -s /var/log/apt/history.log /home/$NEWUSR/upgrade.log
 # Set permit root login "no"
 sed -i '34 s/yes/no/' /etc/ssh/sshd_config
 
+# Remove install file
+rm /root/cloudflared-stable-linux-amd64.deb
+
 echo "*" && echo "**" && echo "***" && echo "****" && echo "*****" && echo "******" && echo "*******" && echo "********" && echo "****" && echo "**" && echo "*" && echo ""
 read -p "Install complete. Run unattended-upgrades now? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
 
-rm /root/cloudflared-stable-linux-amd64.deb
-
 unattended-upgrade -d
-
-
