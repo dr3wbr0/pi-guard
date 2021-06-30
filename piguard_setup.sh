@@ -102,7 +102,7 @@ cp /etc/lighttpd/external.conf /etc/lighttpd/external.conf.orig
 certbot certonly --standalone
 
 echo "" && echo "Enter just the CNAME (or hostname) without the domain."
-read -p "This should be the same as what was used for Let's Encrytp: " CNAME
+read -p "This is the same as what was entered for Certbot: " CNAME
 
 FQDN=$CNAME.$(dnsdomainname)
 
