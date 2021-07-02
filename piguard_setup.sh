@@ -1,5 +1,6 @@
 #!/bin/bash
 
+echo
 echo "Welcome to the Pi-Guard installation script!"
 echo
 read -p "Enter username for new non-root user: " NEWUSR
