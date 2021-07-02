@@ -1,9 +1,24 @@
 #!/bin/bash
 
+echo "Welcome to the Pi-Guard installation script!"
+echo
 read -p "Enter username for new non-root user: " NEWUSR
-read -p "Enter password for $NEWUSR: " PSSWD
+read -sp "Enter new password for $NEWUSR: " PSSWD
+echo
+read -sp "Confirm password: " PSSWD2
+
+# check if passwords match and if not ask again
+while [ "$PSSWD" != "$PSSWD2" ];
+do
+    echo 
+    echo "Please try again"
+    read -sp "Password: " PSSWD
+    echo
+    read -sp "Confirm password: " PSSWD2
+done
 
 # Create new non-root user
+echo
 adduser --disabled-password --gecos "" $NEWUSR
 usermod -aG sudo $NEWUSR
 cp -r /root/.ssh /home/$NEWUSR
@@ -18,11 +33,24 @@ wget -q https://bin.equinox.io/c/VdrWdbjqyF/cloudflared-stable-linux-amd64.deb
 dpkg -i cloudflared-stable-linux-amd64.deb
 
 # Configure screenfetch
-sed -i '29 s/to %s/to PiGuard %s/' /etc/update-motd.d/00-header
+sed -i '29 s/to %s/to Pi-Guard %s/' /etc/update-motd.d/00-header
 chmod -x /etc/update-motd.d/10-help-text
 echo '#!/bin/sh
 /usr/bin/screenfetch' > /etc/update-motd.d/01-update
 chmod +x /etc/update-motd.d/01-update
+echo '#!/bin/bash' > /etc/update-motd.d/02-update
+echo -e "
+
+cat << 'EOF'
+  ____  _        ____                     _ 
+ |  _ \(_)      / ___|_   _  __ _ _ __ __| |
+ | |_) | |_____| |  _| | | |/ _\` | '__/ _\` |
+ |  __/| |_____| |_| | |_| | (_| | | | (_| |
+ |_|   |_|      \____|\__,_|\__,_|_|  \__,_|
+                                           
+EOF
+" >> /etc/update-motd.d/02-update
+chmod +x /etc/update-motd.d/02-update
 
 # Install Cloudflared for DNS over HTTPS
 cloudflared -v
@@ -36,14 +64,14 @@ cloudflared service install --legacy
 systemctl start cloudflared
 
 dig @127.0.0.1 -p 5053 google.com
-echo ""
+echo
 
 # Install Pi-hole
 echo "Copy this value for the custom DNS address: " && echo "127.0.0.1#5053"
 read -p "Continue? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
 
 curl -sSL https://install.pi-hole.net | bash
-echo "" && echo "Pi-hole WebUI"
+echo && echo "Pi-hole WebUI"
 pihole -a -p
 pihole -a -f
 pihole -a -i all
@@ -53,7 +81,7 @@ cd /etc/wireguard
 umask 077
 wg genkey | tee server_private_key | wg pubkey > server_public_key
 
-echo ""
+echo
 read -p "Enter third octet for Wireguard private network: 10.100." OCTET  
 read -p "Enter client private key: " PRIVKEY
 PUBKEY=$(echo $PRIVKEY | wg pubkey)
@@ -78,9 +106,9 @@ sudo sysctl -p
 sudo wg-quick up wg0
 sudo systemctl enable wg-quick@wg0.service
 
-echo ""
-echo "Generating config"
-MYIP=$(curl ipinfo.io/ip)
+echo
+echo "Generating client configuration..." && echo
+MYIP=$(ip a | grep eth0 -m 2 | egrep '[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}' -o | grep -v 255)
 
 echo "[Interface]
 PrivateKey = $PRIVKEY
@@ -92,7 +120,7 @@ PublicKey = $(cat server_public_key)
 AllowedIPs = 0.0.0.0/0
 Endpoint = $MYIP:51820
 PersistentKeepalive = 25"
-echo ""
+echo
 echo "Copy the above config for Wireguard client config."
 read -p "Continue? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
 
@@ -100,11 +128,7 @@ read -p "Continue? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][e
 systemctl stop lighttpd.service
 cp /etc/lighttpd/external.conf /etc/lighttpd/external.conf.orig
 certbot certonly --standalone
-
-echo "" && echo "Enter just the CNAME (or hostname) without the domain."
-read -p "This is the same as what was entered for Certbot: " CNAME
-
-FQDN=$CNAME.$(dnsdomainname)
+FQDN=$(hostname).$(dnsdomainname)
 
 cat /etc/letsencrypt/live/$FQDN/privkey.pem \
 /etc/letsencrypt/live/$FQDN/cert.pem | \
@@ -152,16 +176,24 @@ sed -i '94 s/false/true/' /etc/apt/apt.conf.d/50unattended-upgrades
 
 systemctl status apt-daily.timer
 systemctl status apt-daily-upgrade.timer
-ln -s /var/log/unattended-upgrades /home/$NEWUSR/unattended-upgrades
+# ln -s /var/log/unattended-upgrades /home/$NEWUSR/unattended-upgrades
 ln -s /var/log/apt/history.log /home/$NEWUSR/upgrade.log
 
 # Set permit root login "no"
 sed -i '34 s/yes/no/' /etc/ssh/sshd_config
 
-# Remove install file
-rm /root/cloudflared-stable-linux-amd64.deb
+cat << "EOF"
+  ____  _        ____                     _ 
+ |  _ \(_)      / ___|_   _  __ _ _ __ __| |
+ | |_) | |_____| |  _| | | |/ _` | '__/ _` |
+ |  __/| |_____| |_| | |_| | (_| | | | (_| |
+ |_|   |_|      \____|\__,_|\__,_|_|  \__,_|
+                                           
+EOF
 
-echo "*" && echo "**" && echo "***" && echo "****" && echo "*****" && echo "******" && echo "*******" && echo "********" && echo "****" && echo "**" && echo "*" && echo ""
 read -p "Install complete. Run unattended-upgrades now? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
 
+rm /root/cloudflared-stable-linux-amd64.deb
+
 unattended-upgrade -d
+
