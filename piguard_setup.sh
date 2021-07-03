@@ -1,6 +1,5 @@
 #!/bin/bash
 
-echo
 echo "Welcome to the Pi-Guard installation script!"
 echo
 read -p "Enter username for new non-root user: " NEWUSR
@@ -29,29 +28,24 @@ rm -fr /root/.ssh
 
 # Install new packages
 apt update
-apt install -y wireguard-tools certbot unattended-upgrades screenfetch
+apt install -y wireguard-tools certbot unattended-upgrades
 wget -q https://bin.equinox.io/c/VdrWdbjqyF/cloudflared-stable-linux-amd64.deb
 dpkg -i cloudflared-stable-linux-amd64.deb
 
-# Configure screenfetch
+# Configure ascii motd
 sed -i '29 s/to %s/to Pi-Guard %s/' /etc/update-motd.d/00-header
 chmod -x /etc/update-motd.d/10-help-text
-echo '#!/bin/sh
-/usr/bin/screenfetch' > /etc/update-motd.d/01-update
-chmod +x /etc/update-motd.d/01-update
-echo '#!/bin/bash' > /etc/update-motd.d/02-update
-echo -e "
 
-cat << 'EOF'
-  ____  _        ____                     _ 
- |  _ \(_)      / ___|_   _  __ _ _ __ __| |
- | |_) | |_____| |  _| | | |/ _\` | '__/ _\` |
- |  __/| |_____| |_| | |_| | (_| | | | (_| |
- |_|   |_|      \____|\__,_|\__,_|_|  \__,_|
-                                           
+echo '#!/bin/bash' > /etc/update-motd.d/01-update
+echo -e "cat << 'EOF'
+   ____  _        ____                     _ 
+  |  _ \(_)      / ___|_   _  __ _ _ __ __| |
+  | |_) | |_____| |  _| | | |/ _\` | '__/ _\` |
+  |  __/| |_____| |_| | |_| | (_| | | | (_| |
+  |_|   |_|      \____|\__,_|\__,_|_|  \__,_|
 EOF
-" >> /etc/update-motd.d/02-update
-chmod +x /etc/update-motd.d/02-update
+" >> /etc/update-motd.d/01-update
+chmod +x /etc/update-motd.d/01-update
 
 # Install Cloudflared for DNS over HTTPS
 cloudflared -v
@@ -177,7 +171,6 @@ sed -i '94 s/false/true/' /etc/apt/apt.conf.d/50unattended-upgrades
 
 systemctl status apt-daily.timer
 systemctl status apt-daily-upgrade.timer
-# ln -s /var/log/unattended-upgrades /home/$NEWUSR/unattended-upgrades
 ln -s /var/log/apt/history.log /home/$NEWUSR/upgrade.log
 
 # Set permit root login "no"
@@ -192,9 +185,10 @@ cat << "EOF"
                                            
 EOF
 
-read -p "Install complete. Run unattended-upgrades now? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
+sed -i '1 s/\/bin\/bash/\/usr\/sbin\/nologin/' /etc/passwd
+echo "Root login has been disabled." && echo
+read -p "Installation complete! Run unattended-upgrades now? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
 
 rm /root/cloudflared-stable-linux-amd64.deb
 
 unattended-upgrade -d
-
