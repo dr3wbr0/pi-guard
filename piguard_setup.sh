@@ -2,6 +2,14 @@
 
 echo "Welcome to the Pi-Guard installation script!"
 echo
+sleep 2
+echo "Your public IP address is:" && echo $(ip a | grep eth0 -m 2 | egrep '[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}' -o | grep -v 255)
+echo
+sleep 2
+echo "Make sure you have already created a DNS entry with your registrar."
+echo
+sleep 2
+read -p "Continue? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
 read -p "Enter username for new non-root user: " NEWUSR
 read -sp "Enter new password for $NEWUSR: " PSSWD
 echo
@@ -26,11 +34,14 @@ chown -R $NEWUSR:$NEWUSR /home/$NEWUSR/.ssh
 echo "$NEWUSR:$PSSWD" | chpasswd
 rm -fr /root/.ssh
 
+# Grab IP details
+ETH0CDR=$(ip a | grep eth0 -m 2 | egrep '[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{2}' -o)
+ROUTERS=$(ip route | grep default -m 1 | egrep '[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}' -o)
+ETH1CDR=$(ip a | grep eth1 -m 2 | egrep '[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{2}' -o)
+
 # Install new packages
 apt update
 apt install -y wireguard-tools certbot unattended-upgrades
-wget -q https://bin.equinox.io/c/VdrWdbjqyF/cloudflared-stable-linux-amd64.deb
-dpkg -i cloudflared-stable-linux-amd64.deb
 
 # Configure ascii motd
 sed -i '29 s/to %s/to Pi-Guard %s/' /etc/update-motd.d/00-header
@@ -47,31 +58,116 @@ EOF
 " >> /etc/update-motd.d/01-update
 chmod +x /etc/update-motd.d/01-update
 
-# Install Cloudflared for DNS over HTTPS
-cloudflared -v
-mkdir /etc/cloudflared/
-echo "proxy-dns: true
-proxy-dns-port: 5053
-proxy-dns-upstream:
-  - https://1.1.1.1/dns-query
-  - https://1.0.0.1/dns-query" > /etc/cloudflared/config.yml
-cloudflared service install --legacy
-systemctl start cloudflared
-
-dig @127.0.0.1 -p 5053 google.com
-echo
 
 # Install Pi-hole
-echo "Copy this value for the custom DNS address: " && echo "127.0.0.1#5053"
+echo
+echo "Note: It doesn't matter what upstream DNS servers you choose during the Pi-hole" && echo "configuration because they will be overwritted when we install unbound."
 read -p "Continue? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
 
 curl -sSL https://install.pi-hole.net | bash
 echo && echo "Pi-hole WebUI"
 pihole -a -p
 pihole -a -f
-pihole -a -i all
+echo
+# pihole -a -i all
+
+
+# Install local DNS server
+apt install -y unbound dhcpcd5
+
+# Configure Unbound
+echo "server:
+    # If no logfile is specified, syslog is used
+    # logfile: \"/var/log/unbound/unbound.log\"
+    verbosity: 0
+
+    interface: 127.0.0.1
+    port: 5335
+    do-ip4: yes
+    do-udp: yes
+    do-tcp: yes
+
+    # May be set to yes if you have IPv6 connectivity
+    do-ip6: no
+
+    # You want to leave this to no unless you have *native* IPv6. With 6to4 and
+    # Terredo tunnels your web browser should favor IPv4 for the same reasons
+    prefer-ip6: no
+
+    # Use this only when you downloaded the list of primary root servers!
+    # If you use the default dns-root-data package, unbound will find it automatically
+    #root-hints: \"/var/lib/unbound/root.hints\"
+
+    # Trust glue only if it is within the server's authority
+    harden-glue: yes
+
+    # Require DNSSEC data for trust-anchored zones, if such data is absent, the zone becomes BOGUS
+    harden-dnssec-stripped: yes
+
+    # Don't use Capitalization randomization as it known to cause DNSSEC issues sometimes
+    # see https://discourse.pi-hole.net/t/unbound-stubby-or-dnscrypt-proxy/9378 for further details
+    use-caps-for-id: no
+
+    # Reduce EDNS reassembly buffer size.
+    edns-buffer-size: 1232
+
+    # Perform prefetching of close to expired message cache entries
+    # This only applies to domains that have been frequently queried
+    prefetch: yes
+
+    # One thread should be sufficient, can be increased on beefy machines. In reality for most users running on small networks or on a single machine, it should be unnecessary to seek performance enhancement by increasing num-threads above 1.
+    num-threads: 1
+
+    # Ensure kernel buffer is large enough to not lose messages in traffic spikes
+    so-rcvbuf: 1m
+
+    # Ensure privacy of local IP ranges
+    private-address: 192.168.0.0/16
+    private-address: 169.254.0.0/16
+    private-address: 172.16.0.0/12
+    private-address: 10.0.0.0/8
+    private-address: fd00::/8
+    private-address: fe80::/10" > /etc/unbound/unbound.conf.d/pi-hole.conf
+
+# Configure dhcpcd5
+echo "interface eth0
+    static ip_address=$ETH0CDR
+    static routers=$ROUTERS
+    static domain_name_servers=127.0.0.1#5335
+interface eth1
+    static ip_address=$ETH1CDR" >> /etc/dhcpcd.conf
+
+# Restart DNS services
+# systemctl disable systemd-resolved.service
+# systemctl stop systemd-resolved.service
+echo "Reloading local DNS services..."
+echo
+sleep 2
+systemctl disable unbound-resolvconf.service
+systemctl stop unbound-resolvconf.service
+sudo systemctl restart unbound.service
+sudo systemctl restart dhcpcd.service
+
+# Test domain name resolution
+echo "Testing DNSSEC support..."
+echo
+sleep 2
+dig @127.0.0.1 -p 5335 dns.google.com
+echo
+dig sigfail.verteiltesysteme.net @127.0.0.1 -p 5335
+echo
+dig sigok.verteiltesysteme.net @127.0.0.1 -p 5335
+echo
+
+# Change Upstream Pi-hole DNS
+sed -i '4 s/=.*/=127\.0\.0\.1#5335/' /etc/pihole/setupVars.conf
+sed -i '5 s/=.*/=/' /etc/pihole/setupVars.conf
+pihole restartdns
 
 # Configure Wireguard
+echo
+echo "Time to configure wireguard..."
+sleep 2
 cd /etc/wireguard
 umask 077
 wg genkey | tee server_private_key | wg pubkey > server_public_key
@@ -120,25 +216,35 @@ echo "Copy the above config for Wireguard client config."
 read -p "Continue? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
 
 # Install Let's Encrypt SSL certificate
+echo
+echo "Time to install the Let's Encrypt certificate..."
+echo
+sleep 2
 systemctl stop lighttpd.service
 cp /etc/lighttpd/external.conf /etc/lighttpd/external.conf.orig
 certbot certonly --standalone
-FQDN=$(hostname).$(dnsdomainname)
+FQDN=$(grep -m 1 -v "#" /etc/hosts | cut -f2 -d ' ')
+TLD=$(echo $FQDN | cut -d '.' -f2,3)
+KEYDIR=$(find /etc/letsencrypt/live/ -name "*.$TLD")
+ARCDIR=$(find /etc/letsencrypt/archive/ -name "*.$TLD")
+CERTNM=$(echo $ARCDIR | cut -d '/' -f5)
 
-cat /etc/letsencrypt/live/$FQDN/privkey.pem \
-/etc/letsencrypt/live/$FQDN/cert.pem | \
-tee /etc/letsencrypt/live/$FQDN/combined.pem
+cat $KEYDIR/privkey.pem \
+$KEYDIR/cert.pem | \
+tee $ARCDIR/combined.pem
 
+cd $KEYDIR
+ln -s ../../archive/$CERTNM/combined.pem combined.pem
 chown www-data -R /etc/letsencrypt/live
-echo "\$HTTP[\"host\"] == \"$FQDN\" {
+echo "\$HTTP[\"host\"] == \"$CERTNM\" {
   # Ensure the Pi-hole Block Page knows that this is not a blocked domain
   setenv.add-environment = (\"fqdn\" => \"true\")
 
   # Enable the SSL engine with a LE cert, only for this specific host
   \$SERVER[\"socket\"] == \":443\" {
     ssl.engine = \"enable\"
-    ssl.pemfile = \"/etc/letsencrypt/live/$FQDN/combined.pem\"
-    ssl.ca-file =  \"/etc/letsencrypt/live/$FQDN/fullchain.pem\"
+    ssl.pemfile = \"/etc/letsencrypt/live/$CERTNM/combined.pem\"
+    ssl.ca-file =  \"/etc/letsencrypt/live/$CERTNM/fullchain.pem\"
     ssl.honor-cipher-order = \"enable\"
     ssl.cipher-list = \"EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH\"
     ssl.use-sslv2 = \"disable\"
@@ -152,10 +258,14 @@ echo "\$HTTP[\"host\"] == \"$FQDN\" {
     }
   }
 }" > /etc/lighttpd/external.conf
-
+cd
 systemctl restart lighttpd.service
 
 # Configure unattended-upgrades
+echo
+echo "Configuring automatic upgrades..."
+echo
+sleep 2
 echo "APT::Periodic::Enable \"1\";
 APT::Periodic::Update-Package-Lists \"1\";
 APT::Periodic::Download-Upgradeable-Packages \"1\";
