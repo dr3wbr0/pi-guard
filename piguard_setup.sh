@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ "$EUID" -ne 0 ]
+  then echo "This script must run as root"
+  exit
+fi
+
 echo "Welcome to the Pi-Guard installation script!"
 echo
 sleep 2
@@ -297,8 +302,6 @@ EOF
 
 sed -i '1 s/\/bin\/bash/\/usr\/sbin\/nologin/' /etc/passwd
 echo "Root login has been disabled." && echo
-read -p "Installation complete! Run unattended-upgrades now? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
+read -p "Installation complete! Install updates and reboot now? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
 
-rm /root/cloudflared-stable-linux-amd64.deb
-
-unattended-upgrade -d
+screen -dmS shieldsup bash -c 'apt upgrade -y && reboot'
