@@ -304,4 +304,7 @@ sed -i '1 s/\/bin\/bash/\/usr\/sbin\/nologin/' /etc/passwd
 echo "Root login has been disabled." && echo
 read -p "Installation complete! Install updates and reboot now? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
 
-screen -dmS shieldsup bash -c 'apt upgrade -y && reboot'
+screen -dmS shieldsup bash -c 'unattended-upgrade -d; reboot'
+
+bash -c 'exit'
+exit
