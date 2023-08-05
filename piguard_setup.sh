@@ -29,9 +29,9 @@ done
 echo
 adduser --disabled-password --gecos "" $NEWUSR
 usermod -aG sudo $NEWUSR
-if [ -f "~/.ssh/authorized_keys" ]; then
+if [ -f "/$(whoami)/.ssh/authorized_keys" ]; then
     mkdir "/home/$NEWUSR/.ssh"
-    cat "~/.ssh/authorized_keys" >> "/home/$NEWUSR/.ssh/authorized_keys"
+    cat "/$(whoami)/.ssh/authorized_keys" >> "/home/$NEWUSR/.ssh/authorized_keys"
 fi
 chown -R $NEWUSR:$NEWUSR /home/$NEWUSR/.ssh
 echo "$NEWUSR:$PSSWD" | chpasswd
@@ -228,7 +228,7 @@ echo "Time to install the Let's Encrypt certificate..."
 echo
 systemctl stop lighttpd.service
 sleep 2
-if [[ -f "/etc/lighttpd/external.conf" ]]; then
+if [ -f "/etc/lighttpd/external.conf" ]; then
     cp "/etc/lighttpd/external.conf" "/etc/lighttpd/external.conf.orig"
 fi
 certbot certonly --standalone
