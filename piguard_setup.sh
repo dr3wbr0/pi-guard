@@ -30,6 +30,7 @@ echo
 adduser --disabled-password --gecos "" $NEWUSR
 usermod -aG sudo $NEWUSR
 if [ -f "~/.ssh/authorized_keys" ]; then
+    mkdir "/home/$NEWUSR/.ssh"
     cat "~/.ssh/authorized_keys" >> "/home/$NEWUSR/.ssh/authorized_keys"
 fi
 chown -R $NEWUSR:$NEWUSR /home/$NEWUSR/.ssh
