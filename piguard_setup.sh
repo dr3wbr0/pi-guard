@@ -173,6 +173,15 @@ sed -i '4 s/=.*/=127\.0\.0\.1#5335/' /etc/pihole/setupVars.conf
 sed -i '5 s/=.*/=/' /etc/pihole/setupVars.conf
 pihole restartdns
 
+# Add cronjob to update Pi-hole
+TEMPFILE=$(mktemp)
+if [[ -f /var/spool/cron/crontabs/root ]];
+then
+    crontab -l > $TEMPFILE
+fi
+echo "0 2  * * *   /usr/local/bin/pihole -up" >> $TEMPFILE
+crontab $TEMPFILE
+
 # Configure Wireguard
 echo
 echo "Time to configure wireguard..."
