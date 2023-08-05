@@ -224,9 +224,11 @@ read -p "Continue? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][e
 echo
 echo "Time to install the Let's Encrypt certificate..."
 echo
-sleep 2
 systemctl stop lighttpd.service
-cp "/etc/lighttpd/external.conf" "/etc/lighttpd/external.conf.orig"
+sleep 2
+if [[ -f "/etc/lighttpd/external.conf" ]]; then
+    cp "/etc/lighttpd/external.conf" "/etc/lighttpd/external.conf.orig"
+fi
 certbot certonly --standalone
 # FQDN=$(grep -m 1 -v "#" /etc/hosts | cut -f2 -d ' ')
 TLD=$(echo $FQDN | cut -d '.' -f2,3)
