@@ -226,7 +226,7 @@ echo "Time to install the Let's Encrypt certificate..."
 echo
 sleep 2
 systemctl stop lighttpd.service
-cp /etc/lighttpd/external.conf /etc/lighttpd/external.conf.orig
+cp "/etc/lighttpd/external.conf" "/etc/lighttpd/external.conf.orig"
 certbot certonly --standalone
 # FQDN=$(grep -m 1 -v "#" /etc/hosts | cut -f2 -d ' ')
 TLD=$(echo $FQDN | cut -d '.' -f2,3)
