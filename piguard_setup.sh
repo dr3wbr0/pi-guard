@@ -25,7 +25,7 @@ do
     read -sp "Confirm password: " PSSWD2
 done
 
-# Create new non-root user
+# Create new non-root/admin/default user
 echo
 adduser --disabled-password --gecos "" $NEWUSR
 usermod -aG sudo $NEWUSR
@@ -35,7 +35,7 @@ if [ -f "/$(whoami)/.ssh/authorized_keys" ]; then
 fi
 chown -R $NEWUSR:$NEWUSR /home/$NEWUSR/.ssh
 echo "$NEWUSR:$PSSWD" | chpasswd
-rm -fr /root/.ssh
+[ $(whoami) == "root" ] && rm -fr /root/.ssh
 
 # Grab IP details
 ETH0CDR=$(ip a | grep eth0 -m 2 | egrep '[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}/[0-9]{2}' -o)
