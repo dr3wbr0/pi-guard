@@ -29,8 +29,9 @@ done
 echo
 adduser --disabled-password --gecos "" $NEWUSR
 usermod -aG sudo $NEWUSR
-# cp -r /root/.ssh /home/$NEWUSR
-cat /home/*/.ssh/authorized_keys >> /home/$NEWUSR/.ssh/authorized_keys
+if [ -f "~/.ssh/authorized_keys" ]; then
+    cat "~/.ssh/authorized_keys" >> "/home/$NEWUSR/.ssh/authorized_keys"
+fi
 chown -R $NEWUSR:$NEWUSR /home/$NEWUSR/.ssh
 echo "$NEWUSR:$PSSWD" | chpasswd
 rm -fr /root/.ssh
