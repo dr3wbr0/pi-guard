@@ -276,7 +276,7 @@ echo "
   }
 }" >> /etc/lighttpd/conf-available/10-ssl.conf
 lighttpd-enable-mod ssl
-systemctl restart lighttpd.service
+systemctl restart lighttpd.service && echo "lighttpd service successfully restarted."
 
 # Configure unattended-upgrades
 cd
@@ -315,6 +315,7 @@ EOF
 
 sed -i '1 s/\/bin\/bash/\/usr\/sbin\/nologin/' /etc/passwd
 echo "Root login has been disabled." && echo
+cd && rm -fr "/root/pi-guard" && echo "Cleaning up..." && echo
 read -p "Installation complete! Install updates now? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
 
 unattended-upgrade -d
