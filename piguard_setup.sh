@@ -179,7 +179,22 @@ echo "Time to configure wireguard..."
 sleep 2
 cd /etc/wireguard
 umask 077
-wg genkey | tee server_private_key | wg pubkey > server_public_key
+read -p "Would you like to enter an existing server_private_key? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [nN] ]]
+while [[ "$confirm" != [yY] && "$confirm" != [nN] ]];
+do 
+    read -p "Please enter (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [nN] ]]
+done
+if [[ "$confirm" == [yY] ]]
+  then
+    read -p "Enter server_private_key: " PRIVKEY
+    while ! [[ "$PRIVKEY" =~ ^[0-9A-Za-z/+]{43}=$ ]];
+    do
+        read -p "Please enter valid server_private_key: " PRIVKEY
+    done
+    echo $PRIVKEY | tee server_private_key | wg pubkey > server_public_key
+  else
+    wg genkey | tee server_private_key | wg pubkey > server_public_key
+fi
 
 echo
 read -p "Enter third octet for Wireguard private network: 10.100." OCTET  
