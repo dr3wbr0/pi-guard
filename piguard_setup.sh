@@ -243,32 +243,19 @@ cat $KEYDIR/privkey.pem $KEYDIR/cert.pem | tee $ARCDIR/combined.pem
 cd $KEYDIR
 ln -s ../../archive/$CERTNM/combined.pem combined.pem
 chown www-data -R /etc/letsencrypt/live
-echo "\$HTTP[\"host\"] == \"$CERTNM\" {
-  # Ensure the Pi-hole Block Page knows that this is not a blocked domain
-  setenv.add-environment = (\"fqdn\" => \"true\")
 
-  # Enable the SSL engine with a LE cert, only for this specific host
-  \$SERVER[\"socket\"] == \":443\" {
-    ssl.engine = \"enable\"
-    ssl.pemfile = \"/etc/letsencrypt/live/$CERTNM/combined.pem\"
-    ssl.ca-file =  \"/etc/letsencrypt/live/$CERTNM/fullchain.pem\"
-    ssl.honor-cipher-order = \"enable\"
-    ssl.cipher-list = \"EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH\"
-    ssl.use-sslv2 = \"disable\"
-    ssl.use-sslv3 = \"disable\"       
+sed -i "8 s/\/etc\/lighttpd\/server.pem/\/etc\/letsencrypt\/live\/$CERTNM\/combined.pem/" /etc/lighttpd/conf-available/10-ssl.conf
+echo "
+\$SERVER[\"socket\"] == \":80\" {
+  \$HTTP[\"host\"] =~ \"(.*)\" {
+    url.redirect = ( \"^/(.*)\" => \"https://%1/\$1\" )
   }
-
-  # Redirect HTTP to HTTPS
-  \$HTTP[\"scheme\"] == \"http\" {
-    \$HTTP[\"host\"] =~ \".*\" {
-      url.redirect = (\".*\" => \"https://%0\$0\")
-    }
-  }
-}" > /etc/lighttpd/external.conf
-cd
+}" >> /etc/lighttpd/conf-available/10-ssl.conf
+lighttpd-enable-mod ssl
 systemctl restart lighttpd.service
 
 # Configure unattended-upgrades
+cd
 echo
 echo "Configuring automatic upgrades..."
 echo
@@ -304,7 +291,7 @@ EOF
 
 sed -i '1 s/\/bin\/bash/\/usr\/sbin\/nologin/' /etc/passwd
 echo "Root login has been disabled." && echo
-read -p "Installation complete! Install updates and reboot now? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
+read -p "Installation complete! Install updates now? (Y/N): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || exit 1
 
 unattended-upgrade -d
 
