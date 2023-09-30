@@ -169,8 +169,12 @@ dig sigok.verteiltesysteme.net @127.0.0.1 -p 5335
 echo
 
 # Change Upstream Pi-hole DNS
-sed -i '4 s/=.*/=127\.0\.0\.1#5335/' /etc/pihole/setupVars.conf
-sed -i '5 s/=.*/=/' /etc/pihole/setupVars.conf
+entry1=$(sudo grep -i pihole_dns_1 -n /etc/pihole/setupVars.conf | cut -d: -f1)
+entry2=$(sudo grep -i pihole_dns_2 -n /etc/pihole/setupVars.conf | cut -d: -f1)
+sed -i "$entry1 s/=.*/=127\.0\.0\.1#5335/" /etc/pihole/setupVars.conf
+if [[ x"$entry2" != "x" ]]; then
+    sed -i "$entry2"d /etc/pihole/setupVars.conf
+fi
 pihole restartdns
 
 # Add cronjob to update Pi-hole
